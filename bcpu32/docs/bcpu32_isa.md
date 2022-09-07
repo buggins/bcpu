@@ -89,3 +89,17 @@ Two address modes are supported for LOAD, STORE and JUMPs:
 	Rb + offset12     relative to general purpose register
 	PC + offset18     relative to Program Counter register
 
+
+Immediate value encoding
+------------------------
+
+As second operand B for ALU, MUL, BUS instructions, instead of general purpose register 
+value Rb it's possible to specify constant index from immediate constants table.
+
+Bit field mmm specifies type of operand B.
+When mmm==000, bit field bbbbbb is an index of general purpose register Rb.
+When mmm!=000, concatenated mmm and bbbbbb fields form 9-bit index in constant table.
+Content of constant table may be defined as core configuration.
+
+First 64 entries of immediate table are not accessible due to selected instruction encoding, so only 512-64=448 constants are available.
+
