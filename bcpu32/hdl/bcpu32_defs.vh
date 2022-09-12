@@ -1,4 +1,4 @@
-`include "bcpu_cond_defs.vh"
+`include "../../common/hdl/bcpu_cond_defs.vh"
 
 `define MUL_B_SIGN 3
 `define MUL_A_SIGN 2

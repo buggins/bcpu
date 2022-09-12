@@ -32,30 +32,32 @@ BCPU32 has 4 flags:
 Instruction format
 ------------------
 
-All instructions have the same length, 32 bits.
+All instructions have the same length, 16 bits.
 
 
-	31                                    0    Instruction type
-	cccc 000 m aaaaaa bbbbbb mm dddddd oooo    ALU    Rd, Ra, Rb_or_imm
-	cccc 001 m aaaaaa bbbbbb mm dddddd oooo    MUL    Rd, Ra, Rb_or_imm
-	cccc 010 m dddddd bbbbbb mm iiiiii iiii    BUSRD  Rd, Rb_or_imm, addr10
-	cccc 011 m aaaaaa bbbbbb mm iiiiii iiii    BUSWR  Ra, Rb_or_imm, addr10
-	cccc 100 0 dddddd bbbbbb ii iiiiii iiii    LOAD   Rd, Rb+offset12
-	cccc 100 1 dddddd iiiiii ii iiiiii iiii    LOAD   Rd, PC+offset18
-	cccc 101 0 aaaaaa bbbbbb ii iiiiii iiii    STORE  Ra, Rb+offset12
-	cccc 101 1 aaaaaa iiiiii ii iiiiii iiii    STORE  Ra, PC+offset18
-	cccc 110 0 dddddd bbbbbb ii iiiiii iiii    CALL   Rd, Rb+offset12
-	cccc 110 1 dddddd iiiiii ii iiiiii iiii    CALL   Rd, PC+offset18
-	cccc 111 x xxxxxx xxxxxx xx xxxxxx xxxx    RESERVED
+	15                  0    Instruction type
+	0 oooo bbb aaa ddd mm    ALU Rd, Ra, Rb_or_imm
+	1 0000 ddd aaa iii ii    BUSRD   Rd, Ra, imm5
+	1 0001 ddd aaa iii ii    BUSWAIT Rd, Ra, imm5
+	1 0010 bbb aaa iii ii    BUSWR   Rb, Ra, imm5
+	1 0011 bbb aaa iii ii    BUSWRI  Rb, Ra, imm5
+	1 0100 ddd aaa iii ii    LOAD Rd, Ra+imm5
+	1 0101 bbb aaa iii ii    STORE Rb, Ra+imm5
+	1 0110 ddd iii iii ii    LOAD Rd, PC+imm8
+	1 0111 bbb iii iii ii    STORE Rb, PC+imm8
+	1 100 cccc aaa iii ii    JMP.cond Ra+imm5
+	1 101 cccc iii iii ii    JMP.cond PC+imm8
+	1 110 iiii iii iii ii    CALL PC+imm12
+	1 111 iiii iii iii ii    JMP  PC+imm12
 
 Instruction bit fields:
 
 	cccc    condition code
-	aaaaaa  general purpose register index Ra (R0..R63) to read
-	bbbbbb  general purpose register index Rb (R0..R63) to read
-	dddddd  destination general purpose register index Rd (R0..R63) to write result of operation to (R0==ignore)
-	iiiii   immediate offset (signed), 10/12/18 bits
-	mmm     immediate value mode for Rb operand of ALU, MUL, or BUS operation
+	aaa     general purpose register index Ra (R0..R7) to read
+	bbb     general purpose register index Rb (R0..R7) to read
+	ddd     destination general purpose register index Rd (R0..R7) to write result of operation to (R0==ignore)
+	iiiii   immediate offset (signed), 5/8/12 bits
+	mm      immediate value mode for Rb operand of ALU and MUL operation
 	oooo    ALU or multiplier operation code
 
 
@@ -85,62 +87,92 @@ Based on condition and flag values, any instruction may be skipped.
 	1111  GE          V==S | Z==1     greter or equal, >= for signed
 
 
-In assembler code, append period sign and condition code after instruction mnemonic to specify condition.
-
-If no condition suffix specified for instruction, cccc=0000 (unconditional execution) is assumed.
-
-	JMP     label     ; unconditional jump to label 
-	JMP.LE  label     ; jump to label if result of signed comparision is less or equal
-	MOV     R1, R5    ; R1 := R5  unconditionally
-	MOV.NE  R2, R7    ; R2 := R7  if Z flag == 0
-
 
 Address modes
 -------------
 
-Two address modes are supported for LOAD, STORE and JUMPs:
+BCPU16 address space is 16-bit word based. There are no instructions to access single bytes.
 
-	Rb + offset12     relative to general purpose register
-	PC + offset18     relative to Program Counter register
+Two address modes are supported for LOAD, STORE and conditional JUMPs:
+
+	Rb + offset5     relative to General Purpose Register
+	PC + offset8     relative to Program Counter Register
+
+For JMP and CALL:
+
+	PC + offset12    relative to Program Counter Register
+
+Offset values are signed. E.g. for offset5, range is -16..+15
+
+
 
 Jumps and calls
 ---------------
 
-There is only single instruction covering all calls, jumps, returns, both conditional and unconditional.
+	15                  0    Instruction type
+	1 100 cccc aaa iii ii    JMP.cond Ra+imm5
+	1 101 cccc iii iii ii    JMP.cond PC+imm8
+	1 110 iiii iii iii ii    CALL PC+imm12
+	1 111 iiii iii iii ii    JMP  PC+imm12
 
-	31                                    0    Instruction type
-	cccc 110 0 dddddd bbbbbb ii iiiiii iiii    CALL   Rd, Rb+offset12
-	cccc 110 1 dddddd iiiiii ii iiiiii iiii    CALL   Rd, PC+offset18
+Conditional jumps support Ra+imm5 and PC+imm8 modes. General purpose register mode allows long jumps (load address to register + jump) and conditional returns.
 
-Instruction field ddddd (Rd) is register to save return address to.
-When R0 is specified in dddddd field, return address is not saved, and CALL instruction turns into JUMP.
+Unconditional call and jump support only PC+imm12 mode.
 
-Assembler will implement JMP and RET instructions as aliases to CALL
+CALL instruction stores return address in R7 (link register).
 
-	CALL  R63, label1     ; store return address in R63 and jump to label1
-	JMP   label2          ; jump to label2
-	RET   R63             ; return to address stored in Rb
 
 Immediate value encoding
 ------------------------
 
-As second operand B for ALU, MUL, BUS instructions, instead of general purpose register 
+As second operand B for ALU and MUL instructions, instead of general purpose register 
 value Rb it's possible to specify constant index from immediate constants table.
 
 Bit field mmm specifies type of operand B.
 
-* When mmm==000, bit field bbbbbb is an index of general purpose register Rb
-* When mmm!=000, concatenated mmm and bbbbbb fields form 9-bit index in constant table
-
-Content of constant table may be defined as core configuration.
-
-First 64 entries of immediate table are not accessible due to selected instruction encoding, so only 512-64=448 constants are available.
+	mm bbb    Rb_or_imm value
+	00 000    R0 register value
+	00 001    R1 register value
+	00 010    R2 register value
+	00 011    R3 register value
+	00 100    R4 register value
+	00 101    R5 register value
+	00 110    R6 register value
+	00 111    R7 register value
+	01 000    3  useful constant
+	01 001    5  useful constant
+	01 010    6  useful constant
+	01 011    7  useful constant
+	01 100    15 useful constant
+	01 101    0x00FF useful mask constant
+	01 110    0xFF00 useful mask constant
+	01 111    0xFFFF useful mask constant
+	10 000    0b0000000000000001 (2^0)
+	10 001    0b0000000000000010 (2^1)
+	10 010    0b0000000000000100 (2^2)
+	10 011    0b0000000000001000 (2^3)
+	10 100    0b0000000000010000 (2^4)
+	10 101    0b0000000000100000 (2^5)
+	10 110    0b0000000001000000 (2^6)
+	10 111    0b0000000010000000 (2^7)
+	11 000    0b0000000100000000 (2^8)
+	11 001    0b0000001000000000 (2^9)
+	11 010    0b0000010000000000 (2^10)
+	11 011    0b0000100000000000 (2^11)
+	11 100    0b0001000000000000 (2^12)
+	11 101    0b0010000000000000 (2^13)
+	11 110    0b0100000000000000 (2^14)
+	11 111    0b1000000000000000 (2^15)
 
 
 ALU operations
 --------------
 
-BCPU32 ALU instructions have 3-address format.
+BCPU16 ALU instructions have 3-address format.
+
+	15                  0    Instruction type
+	0 oooo bbb aaa ddd mm    ALU Rd, Ra, Rb_or_imm
+
 
 ALU takes two operands (Ra - from register, Rb_or_imm - from register or immediate constant table), and stores result of operation in register Rd.
 
@@ -151,29 +183,32 @@ ALU takes two operands (Ra - from register, Rb_or_imm - from register or immedia
 Flags are being updated depending on type of operation.
 
 
-	oooo   mnemonic    flags    description                 comment
-	0000   ADDNF       ....     Rd := Ra + Rb_or_imm        add, no flags update
-	0001   SUBNF       ....     Rd := Ra - Rb_or_imm        subtract, no flags update
-	0010   ADD         VSZC     Rd := Ra + Rb_or_imm        add
-	0011   ADC         VSZC     Rd := Ra + Rb_or_imm + C    add with carry
-	0100   SUB         VSZC     Rd := Ra - Rb_or_imm        subtract
-	0101   SBC         VSZC     Rd := Ra - Rb_or_imm - C    subtract with borrow
-	0110   RSUB        VSZC     Rd := Rb_or_imm - Ra        subtract with reversed operands
-	0111   RSBC        VSZC     Rd := Rb_or_imm - Ra - C    subtract with reversed operands with borrow
-	1000   AND         ..Z.     Rd := Ra & Rb_or_imm        and
-	1001   ANDN        ..Z.     Rd := Ra & ~Rb_or_imm       and with inverted operand B (reset bits)
-	1010   OR          ..Z.     Rd := Ra | Rb_or_imm        or
-	1011   XOR         ..Z.     Rd := Ra ^ Rb_or_imm        exclusive or
-	1100   -           ....     reserved                    reserved for future usage
-	1101   -           ....     reserved                    reserved for future usage
-	1110   -           ....     reserved                    reserved for future usage
-	1111   -           ....     reserved                    reserved for future usage
+	oooo   mnemonic  flags  description                 comment
+	0000   ADDNF     ....   Rd := Ra + Rb_or_imm        add, no flags update
+	0001   SUBNF     ....   Rd := Ra - Rb_or_imm        subtract, no flags update
+	0010   ADD       VSZC   Rd := Ra + Rb_or_imm        add
+	0011   ADC       VSZC   Rd := Ra + Rb_or_imm + C    add with carry
+	0100   SUB       VSZC   Rd := Ra - Rb_or_imm        subtract
+	0101   SBC       VSZC   Rd := Ra - Rb_or_imm - C    subtract with borrow
+	0110   RSUB      VSZC   Rd := Rb_or_imm - Ra        subtract with reversed operands
+	0111   RSBC      VSZC   Rd := Rb_or_imm - Ra - C    subtract with reversed operands with borrow
+	1000   AND       ..Z.   Rd := Ra & Rb_or_imm        and
+	1001   ANDN      ..Z.   Rd := Ra & ~Rb_or_imm       and with inverted operand B (reset bits)
+	1010   OR        ..Z.   Rd := Ra | Rb_or_imm        or
+	1011   XOR       ..Z.   Rd := Ra ^ Rb_or_imm        exclusive or
+	1100   MUL       ....   Rd := (Ra \* Rb_or_imm)     multiply, get lower 16 bits of result
+	1101   MULHSU    ....   Rd := (Ra \* Rb_or_imm)>>16 multiply signed \* unsigned, take higher 16 bits of result
+	1110   MULHUU    ....   Rd := (Ra \* Rb_or_imm)>>16 multiply unsigned \* unsigned, take higher 16 bits of result
+	1111   MULHSS    ....   Rd := (Ra \* Rb_or_imm)>>16 multiply signed \* signed, take higher 16 bits of result
+
 
 Useful aliases:
 
-	NOP                ADDNF R0, R0, R0          no operation
-	MOV Rd, Ra         ADDNF Rd, Ra, R0          Rd := Ra
-	INC Rd, Ra         ADDNF Rd, Ra, 1           Rd := Ra + 1
-	DEC Rd, Ra         SUBNF Rd, Ra, 1           Rd := Ra - 1
-	CMP Ra, Rb         SUB   R0, Ra, Rb          (Ra - Rb), set flags according to comparision result
+	NOP              ADDNF R0, R0, R0    no operation
+	MOV  Rd, Ra      ADDNF Rd, Ra, R0    Rd := Ra
+	INC  Rd, Ra      ADDNF Rd, Ra, 1     Rd := Ra + 1
+	DEC  Rd, Ra      SUBNF Rd, Ra, 1     Rd := Ra - 1
+	CMP  Ra, Rb      SUB   R0, Ra, Rb    (Ra - Rb), set flags according to comparision result
+	CMPC Ra, Rb      SUB   R0, Ra, Rb    (Ra - Rb), set flags according to comparision result
+	TEST Ra, Rb      AND   R0, Ra, Rb    (Ra & Rb), set flags according to result
 
