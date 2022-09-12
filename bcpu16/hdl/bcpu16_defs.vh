@@ -10,9 +10,9 @@
 `define ALUOP_RSUB     4'b0110
 `define ALUOP_RSBC     4'b0111
 `define ALUOP_AND      4'b1000
-`define ALUOP_XOR      4'b1001
-`define ALUOP_ANDN     4'b1010
-`define ALUOP_OR       4'b1011
+`define ALUOP_ANDN     4'b1001
+`define ALUOP_OR       4'b1010
+`define ALUOP_XOR      4'b1011
 `define ALUOP_MUL      4'b1100
 `define ALUOP_MULHSU   4'b1101
 `define ALUOP_MULHUU   4'b1110
