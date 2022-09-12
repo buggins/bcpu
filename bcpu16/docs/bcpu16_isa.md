@@ -4,6 +4,7 @@ BCPU16 Instruction Set Architecture
 BCPU16 is 16-bit RISC architecture optimized for FPGA implementation.
 
 
+
 General Purpose Registers
 -------------------------
 
@@ -196,10 +197,10 @@ Flags are being updated depending on type of operation.
 	1001   ANDN      ..Z.   Rd := Ra & ~Rb_or_imm       and with inverted operand B (reset bits)
 	1010   OR        ..Z.   Rd := Ra | Rb_or_imm        or
 	1011   XOR       ..Z.   Rd := Ra ^ Rb_or_imm        exclusive or
-	1100   MUL       ....   Rd := (Ra * Rb_or_imm)     multiply, get lower 16 bits of result
-	1101   MULHSU    ....   Rd := (Ra * Rb_or_imm)>>16 multiply signed * unsigned, take higher 16 bits of result
-	1110   MULHUU    ....   Rd := (Ra * Rb_or_imm)>>16 multiply unsigned * unsigned, take higher 16 bits of result
-	1111   MULHSS    ....   Rd := (Ra * Rb_or_imm)>>16 multiply signed * signed, take higher 16 bits of result
+	1100   MUL       ....   Rd := (Ra * Rb_or_imm)      multiply, get lower 16 bits of result
+	1101   MULHSU    ....   Rd := (Ra * Rb_or_imm)>>16  multiply signed * unsigned, take higher 16 bits of result
+	1110   MULHUU    ....   Rd := (Ra * Rb_or_imm)>>16  multiply unsigned * unsigned, take higher 16 bits of result
+	1111   MULHSS    ....   Rd := (Ra * Rb_or_imm)>>16  multiply signed * signed, take higher 16 bits of result
 
 
 Useful aliases:
@@ -211,4 +212,57 @@ Useful aliases:
 	CMP  Ra, Rb      SUB   R0, Ra, Rb    (Ra - Rb), set flags according to comparision result
 	CMPC Ra, Rb      SUB   R0, Ra, Rb    (Ra - Rb), set flags according to comparision result
 	TEST Ra, Rb      AND   R0, Ra, Rb    (Ra & Rb), set flags according to result
+
+
+BUS instructions
+----------------
+
+BUS instructions allow to deal with INPUT and OUTPUT buses (I/O devices).
+As well, BUS address space is suitable for introducing new instructions (read-like and write-like) - externally in FPGA.
+
+BCPU16 instruction set reserves space for BUS READ and BUS WRITE operations.
+
+	15                  0    Instruction type        Description
+	1 0000 ddd aaa iii ii    BUSRD   Rd, Ra, imm5    read from port imm5 using mask Ra, write result to Rd
+	1 0001 ddd aaa iii ii    BUSWAIT Rd, Ra, imm5    read from port imm5 using mask Ra, write result to Rd, wait until value is non-zero
+	1 0010 bbb aaa iii ii    BUSWR   Rb, Ra, imm5    write value of Ra by mask Rb to port imm5
+	1 0011 bbb aaa iii ii    BUSWRI  Rb, Ra, imm5    write inverted value ~Ra by mask Rb to port imm5
+
+Address space for both buses is 5 bits (up to 32 16-bit ports).
+
+Meaning of input and output operations may be different for different port address - depending implementation of external FPGA devices.
+
+There are two main kinds of operations.
+
+Reading from INPUT BUS (BUSRD/BUSWAIT) are intended to read from input ports. It has single operand Ra which may be used as bit mask or any other purpose, depending on particular device connected to input bus.
+Writing to OUTPUT BUS (BUSWR/BUSWRI) are intended to write value to output port. It has two operands. Ra usually is value to write and Rb is bit mask, but meaning may differ for each output bus device.
+
+BUS (usually input bus) may request to WAIT until some input signal is set - by asserting WAIT signal - in this case current instruction will be repeated until value returned from port becomes non-zero.
+
+Typical implementation of input and output port - GPIO module (GPIN, GPOUT) - up to 16 bits per I/O address.
+For GPIN, BUSRD reads value from port by applying mask from Ra (ibus[imm5] & Ra), writes result to Rd, and sets Z flag to 1 if read value is zero, or to 0 if value is non-zero.
+For GPIN, BUSWAIT reads value from port by applying mask from Ra (ibus[imm5] & Ra), writes result to Rd, and sets Z flag to 1 if read value is zero, or to 0 if value is non-zero, and repeats current instruction untile value becomes non-zero.
+
+For GPOUT BUSWR instruction value Rb is set to output port bits specified by Ra mask.
+For GPOUT BUSWRI instruction inverted value ~Rb is set to output port bits specified by Ra mask.
+
+Another examples of bus devices:
+
+Memory access: BUSRD Ra register value is address in external memory, read value is saved to Rd. BUSWR for memory access port uses Ra as memory address and Rb as value to write.
+
+
+Barrel CPU
+----------
+
+BCPU16 ISA is pretty suitable for implementation of Barrel Processor architecture.
+
+If we have processor design with N-stage pipeline, we can easy turn it into N-thread processor, by feeding running of different threads on different stages of pipeline.
+
+Additional resources required for turning of usual CPU to barrel one mostly consist on increased number of registers - each thread requires separate set of registers.
+
+Each thread needs its own flags and PC, but most likely they are already exist in design as pipeline stages.
+
+B in BCPU16 stands for Barrel.
+
+BCPU16 ISA is good for 4-stage pipeline, and hence 4-threaded Barrel Processor.
 
