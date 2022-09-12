@@ -196,10 +196,10 @@ Flags are being updated depending on type of operation.
 	1001   ANDN      ..Z.   Rd := Ra & ~Rb_or_imm       and with inverted operand B (reset bits)
 	1010   OR        ..Z.   Rd := Ra | Rb_or_imm        or
 	1011   XOR       ..Z.   Rd := Ra ^ Rb_or_imm        exclusive or
-	1100   MUL       ....   Rd := (Ra \* Rb_or_imm)     multiply, get lower 16 bits of result
-	1101   MULHSU    ....   Rd := (Ra \* Rb_or_imm)>>16 multiply signed \* unsigned, take higher 16 bits of result
-	1110   MULHUU    ....   Rd := (Ra \* Rb_or_imm)>>16 multiply unsigned \* unsigned, take higher 16 bits of result
-	1111   MULHSS    ....   Rd := (Ra \* Rb_or_imm)>>16 multiply signed \* signed, take higher 16 bits of result
+	1100   MUL       ....   Rd := (Ra * Rb_or_imm)     multiply, get lower 16 bits of result
+	1101   MULHSU    ....   Rd := (Ra * Rb_or_imm)>>16 multiply signed * unsigned, take higher 16 bits of result
+	1110   MULHUU    ....   Rd := (Ra * Rb_or_imm)>>16 multiply unsigned * unsigned, take higher 16 bits of result
+	1111   MULHSS    ....   Rd := (Ra * Rb_or_imm)>>16 multiply signed * signed, take higher 16 bits of result
 
 
 Useful aliases:
